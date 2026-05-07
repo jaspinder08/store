@@ -16,8 +16,11 @@ class CategoryUpdate(BaseModel):
     icon: Optional[str] = None
     is_active: Optional[bool] = None
 
-class CategoryResponse(CategoryBase):
+class CategoryResponse(BaseModel):
     id: UUID
+    name: str = Field(..., min_length=2, max_length=100, description="Name of the category")
+    icon: Optional[str] = Field(None, description="URL or identifier for the category icon")
+    is_active: bool = Field(True, description="Whether the category is active")
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

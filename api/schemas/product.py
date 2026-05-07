@@ -24,9 +24,16 @@ class ProductUpdate(BaseModel):
     image_url: Optional[str] = None
     category_id: Optional[UUID] = None
 
-class ProductResponse(ProductBase):
+class ProductResponse(BaseModel):
     id: UUID
     shop_id: UUID
+    name: str = Field(..., min_length=2, max_length=150, description="Product name")
+    description: Optional[str] = Field(None, description="Product description")
+    price: float = Field(..., gt=0, description="Product price must be greater than 0")
+    stock_quantity: int = Field(0, ge=0, description="Stock quantity cannot be negative")
+    is_available: bool = Field(True, description="Whether the product is currently available")
+    image_url: Optional[str] = Field(None, description="Product image URL")
+    category_id: UUID = Field(..., description="ID of the category this product belongs to")
     created_at: datetime
     updated_at: datetime
 

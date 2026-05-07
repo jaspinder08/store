@@ -2,6 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from api.endpoints import deps
 from api.crud import auth as crud_auth
 from api.crud import shop_auth as crud_shop
@@ -11,7 +12,8 @@ from api.models.user import User
 from uuid import UUID
 from api.crud import category as crud_category
 from api.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
-
+from api.schemas.order import OrderUpdateStatus
+from api.models.order import OrderStatus
 router = APIRouter()
 tags: Optional[list] = ["Admin"]
 logger = logging.getLogger(__name__)
@@ -202,3 +204,119 @@ def admin_delete_category(
         status_code=status.HTTP_200_OK,
         message="Category deleted successfully."
     )
+
+@router.get("/orders", response_model=ApnaStoreResponse, tags=tags)
+def admin_get_orders(
+    db: Session = Depends(deps.get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1),
+    status_filter: Optional[OrderStatus] = None,
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Get all orders (Admin only), optionally filtering by status.
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="The user does not have enough privileges."
+        )
+
+    try:
+        from api.models.order import Order
+        query = db.query(Order).filter(Order.is_deleted == False)
+        
+        if status_filter:
+            query = query.filter(Order.status == status_filter)
+            
+        orders = query.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
+        from api.schemas.order import OrderResponse
+        return ApnaStoreResponse(
+            success=True,
+            data=[OrderResponse.model_validate(o) for o in orders],
+            status_code=status.HTTP_200_OK,
+            message="Orders retrieved successfully."
+        )
+    except Exception as e:
+        logger.error(f"Error getting admin orders: {e}")
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="An unexpected error occurred."
+        )
+
+@router.put("/orders/{id}/status", response_model=ApnaStoreResponse, tags=tags)
+def admin_update_order_status(
+    id: UUID,
+    body: OrderUpdateStatus,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Update order status (Admin only). Used for marking delivery stages.
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="The user does not have enough privileges."
+        )
+
+    try:
+        from api.models.order import Order
+        order = db.query(Order).filter(Order.id == id, Order.is_deleted == False).first()
+        if not order:
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="Order not found."
+            )
+            
+        if order.status in [OrderStatus.rejected, OrderStatus.delivered, OrderStatus.cancelled]:
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message=f"Order is already {order.status.value} and cannot be modified."
+            )
+            
+        allowed_transitions = {
+            OrderStatus.ready_for_delivery: [OrderStatus.out_for_delivery],
+            OrderStatus.out_for_delivery: [OrderStatus.delivered],
+        }
+        
+        allowed = allowed_transitions.get(order.status, [])
+        if body.status not in allowed:
+            allowed_names = [a.value for a in allowed]
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message=f"Invalid status transition for Admin from {order.status.value} to {body.status.value}. Allowed: {allowed_names}"
+            )
+            
+        order.status = body.status
+        db.commit()
+        db.refresh(order)
+        
+        from api.schemas.order import OrderResponse
+        return ApnaStoreResponse(
+            success=True,
+            data=OrderResponse.model_validate(order),
+            status_code=status.HTTP_200_OK,
+            message="Order status updated successfully."
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating order status by admin: {e}")
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="An unexpected error occurred."
+        )

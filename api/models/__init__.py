@@ -5,3 +5,4 @@ from api.models.otp import OTP
 from api.models.shop import Shop
 from api.models.category import Category
 from api.models.product import Product
+from api.models.order import Order, OrderItem
