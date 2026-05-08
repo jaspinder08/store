@@ -18,7 +18,7 @@ router = APIRouter()
 tags: Optional[list] = ["Admin"]
 logger = logging.getLogger(__name__)
 
-@router.post("/shops", response_model=ApnaStoreResponse, tags=tags)
+@router.post("/shops", response_model=ApnaStoreResponse, tags=["Admin - Shops"])
 def admin_create_shop(
     *,
     db: Session = Depends(deps.get_db),
@@ -86,7 +86,7 @@ def admin_create_shop(
             message="An unexpected error occurred during shop creation."
         )
 
-@router.post("/categories", response_model=ApnaStoreResponse, tags=tags)
+@router.post("/categories", response_model=ApnaStoreResponse, tags=["Admin - Categories"])
 def admin_create_category(
     *,
     db: Session = Depends(deps.get_db),
@@ -122,7 +122,7 @@ def admin_create_category(
         message="Category created successfully."
     )
 
-@router.put("/categories/{id}", response_model=ApnaStoreResponse, tags=tags)
+@router.put("/categories/{id}", response_model=ApnaStoreResponse, tags=["Admin - Categories"])
 def admin_update_category(
     *,
     db: Session = Depends(deps.get_db),
@@ -169,7 +169,7 @@ def admin_update_category(
         message="Category updated successfully."
     )
 
-@router.delete("/categories/{id}", response_model=ApnaStoreResponse, tags=tags)
+@router.delete("/categories/{id}", response_model=ApnaStoreResponse, tags=["Admin - Categories"])
 def admin_delete_category(
     *,
     db: Session = Depends(deps.get_db),
@@ -205,12 +205,48 @@ def admin_delete_category(
         message="Category deleted successfully."
     )
 
-@router.get("/orders", response_model=ApnaStoreResponse, tags=tags)
+@router.get("/categories", response_model=ApnaStoreResponse, tags=["Admin - Categories"])
+def admin_get_categories(
+    db: Session = Depends(deps.get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1),
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Get all categories (Admin only), including inactive ones.
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="The user does not have enough privileges."
+        )
+
+    try:
+        from api.models.category import Category
+        categories = db.query(Category).filter(Category.is_deleted == False).order_by(Category.created_at.desc()).offset(skip).limit(limit).all()
+        return ApnaStoreResponse(
+            success=True,
+            data=[CategoryResponse.model_validate(c) for c in categories],
+            status_code=status.HTTP_200_OK,
+            message="Categories retrieved successfully."
+        )
+    except Exception as e:
+        logger.error(f"Error getting admin categories: {e}")
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="An unexpected error occurred."
+        )
+
+@router.get("/orders", response_model=ApnaStoreResponse, tags=["Admin - Orders"])
 def admin_get_orders(
     db: Session = Depends(deps.get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1),
-    status_filter: Optional[OrderStatus] = None,
+    status_filter: Optional[OrderStatus] = Query(None, alias="status"),
     current_user: User = Depends(crud_auth.get_current_user)
 ):
     """
@@ -248,7 +284,7 @@ def admin_get_orders(
             message="An unexpected error occurred."
         )
 
-@router.put("/orders/{id}/status", response_model=ApnaStoreResponse, tags=tags)
+@router.put("/orders/{id}/status", response_model=ApnaStoreResponse, tags=["Admin - Orders"])
 def admin_update_order_status(
     id: UUID,
     body: OrderUpdateStatus,
@@ -318,5 +354,208 @@ def admin_update_order_status(
             success=False,
             data=None,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="An unexpected error occurred."
+        )
+
+from api.schemas.shop_auth import ShopUpdateRequest, ShopStatusUpdate
+from api.models.shop import Shop
+
+@router.put("/shops/{id}", response_model=ApnaStoreResponse, tags=["Admin - Shops"])
+def admin_update_shop(
+    id: UUID,
+    body: ShopUpdateRequest,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Update shop details (Admin only).
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Privilege required"
+        )
+    try:
+        shop = db.query(Shop).filter(Shop.id == id).first()
+        if not shop:
+            return ApnaStoreResponse(
+                success=False, 
+                data=None, 
+                status_code=status.HTTP_404_NOT_FOUND, 
+                message="Shop not found."
+            )
+            
+        update_data = body.model_dump(exclude_unset=True)
+        for k, v in update_data.items():
+            setattr(shop, k, v)
+        
+        db.commit()
+        db.refresh(shop)
+        
+        return ApnaStoreResponse(
+            success=True, 
+            data=ShopResponse.model_validate(shop), 
+            status_code=status.HTTP_200_OK, 
+            message="Shop updated successfully."
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating shop by admin: {e}")
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            message="Update failed"
+        )
+
+@router.put("/shops/{id}/status", response_model=ApnaStoreResponse, tags=["Admin - Shops"])
+def admin_update_shop_status(
+    id: UUID,
+    body: ShopStatusUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Update shop active status (Admin only).
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Privilege required"
+        )
+    try:
+        shop = db.query(Shop).filter(Shop.id == id).first()
+        if not shop:
+            return ApnaStoreResponse(
+                success=False, 
+                data=None, 
+                status_code=status.HTTP_404_NOT_FOUND, 
+                message="Shop not found."
+            )
+            
+        shop.is_active = body.is_active
+        db.commit()
+        db.refresh(shop)
+        
+        status_msg = "activated" if shop.is_active else "deactivated"
+        return ApnaStoreResponse(
+            success=True, 
+            data=ShopResponse.model_validate(shop), 
+            status_code=status.HTTP_200_OK, 
+            message=f"Shop {status_msg} successfully."
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating shop status by admin: {e}")
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            message="Status update failed"
+        )
+
+from sqlalchemy import or_
+
+@router.get("/shops", response_model=ApnaStoreResponse, tags=["Admin - Shops"])
+def admin_get_shops(
+    db: Session = Depends(deps.get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1),
+    is_active: Optional[bool] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Get all shops (Admin only) with optional filtering and search.
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_403_FORBIDDEN, 
+            message="Privilege required."
+        )
+    
+    try:
+        from api.models.shop import Shop
+        query = db.query(Shop)
+        
+        if is_active is not None:
+            query = query.filter(Shop.is_active == is_active)
+            
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Shop.shop_name.ilike(search_term),
+                    Shop.owner_name.ilike(search_term),
+                    Shop.phone.ilike(search_term),
+                    Shop.email.ilike(search_term)
+                )
+            )
+            
+        shops = query.order_by(Shop.created_at.desc()).offset(skip).limit(limit).all()
+        
+        from api.schemas.shop_auth import AdminShopListResponse
+        return ApnaStoreResponse(
+            success=True,
+            data=[AdminShopListResponse.model_validate(s) for s in shops],
+            status_code=status.HTTP_200_OK,
+            message="Shops retrieved successfully."
+        )
+    except Exception as e:
+        logger.error(f"Error getting admin shops: {e}")
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            message="An unexpected error occurred."
+        )
+
+@router.get("/shops/{id}", response_model=ApnaStoreResponse, tags=["Admin - Shops"])
+def admin_get_shop(
+    id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(crud_auth.get_current_user)
+):
+    """
+    Get full details of a specific shop by ID (Admin only).
+    """
+    if current_user.role != "admin":
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_403_FORBIDDEN, 
+            message="Privilege required."
+        )
+    
+    try:
+        from api.models.shop import Shop
+        shop = db.query(Shop).filter(Shop.id == id).first()
+        if not shop:
+            return ApnaStoreResponse(
+                success=False, 
+                data=None, 
+                status_code=status.HTTP_404_NOT_FOUND, 
+                message="Shop not found."
+            )
+            
+        from api.schemas.shop_auth import AdminShopDetailResponse
+        return ApnaStoreResponse(
+            success=True,
+            data=AdminShopDetailResponse.model_validate(shop),
+            status_code=status.HTTP_200_OK,
+            message="Shop retrieved successfully."
+        )
+    except Exception as e:
+        logger.error(f"Error getting shop details: {e}")
+        return ApnaStoreResponse(
+            success=False, 
+            data=None, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             message="An unexpected error occurred."
         )

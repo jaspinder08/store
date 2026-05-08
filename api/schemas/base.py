@@ -9,3 +9,7 @@ class ApnaStoreResponse(BaseModel):
     data: Any
     status_code: int
     message: str
+
+class ListResponse(BaseModel):
+    count: int
+    items: list[Any]

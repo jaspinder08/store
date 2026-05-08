@@ -14,7 +14,7 @@ from api.models.shop import Shop
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("", response_model=ApnaStoreResponse, tags=["Shop Products"])
+@router.post("", response_model=ApnaStoreResponse, tags=["Shop - Products"])
 def create_product(
     *,
     db: Session = Depends(deps.get_db),
@@ -52,7 +52,7 @@ def create_product(
             message="An unexpected error occurred while creating product."
         )
 
-@router.get("", response_model=ApnaStoreResponse, tags=["Shop Products"])
+@router.get("", response_model=ApnaStoreResponse, tags=["Shop - Products"])
 def get_products(
     db: Session = Depends(deps.get_db),
     skip: int = Query(0, ge=0),
@@ -89,7 +89,7 @@ def get_products(
             message="An unexpected error occurred while retrieving products."
         )
 
-@router.get("/{id}", response_model=ApnaStoreResponse, tags=["Shop Products"])
+@router.get("/{id}", response_model=ApnaStoreResponse, tags=["Shop - Products"])
 def get_product(
     id: UUID,
     db: Session = Depends(deps.get_db),
@@ -123,7 +123,7 @@ def get_product(
             message="An unexpected error occurred while retrieving product."
         )
 
-@router.put("/{id}", response_model=ApnaStoreResponse, tags=["Shop Products"])
+@router.put("/{id}", response_model=ApnaStoreResponse, tags=["Shop - Products"])
 def update_product(
     id: UUID,
     body: ProductUpdate,
@@ -171,7 +171,7 @@ def update_product(
             message="An unexpected error occurred while updating product."
         )
 
-@router.delete("/{id}", response_model=ApnaStoreResponse, tags=["Shop Products"])
+@router.delete("/{id}", response_model=ApnaStoreResponse, tags=["Shop - Products"])
 def delete_product(
     id: UUID,
     db: Session = Depends(deps.get_db),

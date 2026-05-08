@@ -13,7 +13,8 @@ def init_db() -> None:
     # 🌱 Seed initial data
     db = SessionLocal()
     try:
-        admin_email = "jaspinder.office@gmail.com"
+        from api.core import security
+        admin_email = "admin@gmail.com"
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
             print(f"🚀 Auto-seeding Admin: {admin_email}")
@@ -21,6 +22,7 @@ def init_db() -> None:
                 email=admin_email,
                 username="admin",
                 role="admin",
+                password=security.get_password_hash("password"),
                 is_active=True
             )
             db.add(new_admin)

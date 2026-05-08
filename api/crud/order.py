@@ -89,12 +89,17 @@ def get_order_by_user(db: Session, user_id: UUID, order_id: UUID):
         logger.error(f"Error getting user order: {e}")
         raise e
 
-def get_orders_by_shop(db: Session, shop_id: UUID, skip: int = 0, limit: int = 100):
+def get_orders_by_shop(db: Session, shop_id: UUID, skip: int = 0, limit: int = 100, status_filter: Optional[OrderStatus] = None):
     try:
-        return db.query(Order).filter(
+        query = db.query(Order).filter(
             Order.shop_id == shop_id,
             Order.is_deleted == False
-        ).order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
+        )
+        
+        if status_filter:
+            query = query.filter(Order.status == status_filter)
+            
+        return query.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
     except Exception as e:
         logger.error(f"Error getting shop orders: {e}")
         raise e

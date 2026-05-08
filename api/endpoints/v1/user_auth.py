@@ -18,7 +18,7 @@ from api.models.user import User
 
 
 router = APIRouter()
-tags: Optional[list] = ["Auth"]
+tags: Optional[list] = ["User - Auth"]
 logger = logging.getLogger(__name__)
 
 

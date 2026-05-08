@@ -8,11 +8,15 @@ from api.crud.auth import get_current_user
 from api.schemas.order import OrderCreate, OrderResponse
 from api.schemas.base import ApnaStoreResponse
 from api.models.user import User
+from typing import Optional
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+tags: Optional[list] = ["User - Orders"]
 
-@router.post("", response_model=ApnaStoreResponse, tags=["Orders"])
+
+@router.post("", response_model=ApnaStoreResponse, tags=tags)
 def place_order(
     *,
     db: Session = Depends(deps.get_db),
@@ -48,7 +52,7 @@ def place_order(
             message="An unexpected error occurred while placing the order."
         )
 
-@router.get("", response_model=ApnaStoreResponse, tags=["Orders"])
+@router.get("", response_model=ApnaStoreResponse, tags=tags)
 def get_orders(
     db: Session = Depends(deps.get_db),
     skip: int = Query(0, ge=0),
@@ -75,7 +79,7 @@ def get_orders(
             message="An unexpected error occurred."
         )
 
-@router.get("/{id}", response_model=ApnaStoreResponse, tags=["Orders"])
+@router.get("/{id}", response_model=ApnaStoreResponse, tags=tags)
 def get_order(
     id: UUID,
     db: Session = Depends(deps.get_db),

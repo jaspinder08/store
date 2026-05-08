@@ -39,7 +39,7 @@ def get_products_by_shop(
         if category_id:
             query = query.filter(Product.category_id == category_id)
             
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(Product.created_at.desc()).offset(skip).limit(limit).all()
     except Exception as e:
         logger.error(f"Error fetching products for shop {shop_id}: {e}")
         raise e

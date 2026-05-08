@@ -41,3 +41,12 @@ class UserAuthResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class AdminLoginRequest(BaseModel):
+    email: EmailStr = "admin@gmail.com"
+    password: str = "password"
+
+class AdminUpdatePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+    confirm_password: str

@@ -12,18 +12,22 @@ from api.models.shop import Shop
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.get("", response_model=ApnaStoreResponse, tags=["Shop Orders"])
+from typing import Optional
+from api.models.order import OrderStatus
+
+@router.get("", response_model=ApnaStoreResponse, tags=["Shop - Orders"])
 def get_shop_orders(
     db: Session = Depends(deps.get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1),
+    status_filter: Optional[OrderStatus] = Query(None, alias="status"),
     current_shop: Shop = Depends(get_current_shop)
 ):
     """
     Get all orders for the logged-in shop.
     """
     try:
-        orders = crud_order.get_orders_by_shop(db, shop_id=current_shop.id, skip=skip, limit=limit)
+        orders = crud_order.get_orders_by_shop(db, shop_id=current_shop.id, skip=skip, limit=limit, status_filter=status_filter)
         return ApnaStoreResponse(
             success=True,
             data=[OrderResponse.model_validate(o) for o in orders],
@@ -39,7 +43,7 @@ def get_shop_orders(
             message="An unexpected error occurred."
         )
 
-@router.put("/{id}/status", response_model=ApnaStoreResponse, tags=["Shop Orders"])
+@router.put("/{id}/status", response_model=ApnaStoreResponse, tags=["Shop - Orders"])
 def update_order_status(
     id: UUID,
     body: OrderUpdateStatus,

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, Float, Boolean
 from api.models.base import TimestampModel
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -16,8 +16,11 @@ class Shop(TimestampModel):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=True)
     role = Column(String, default="shop")
-    country = Column(String(100), nullable=True)
-    state = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
-    postal_code = Column(String(20), nullable=True)
     address = Column(String(500), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    pincode = Column(String(20), nullable=True)
+    landmark = Column(String(255), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    profile_completed = Column(Boolean, default=False)

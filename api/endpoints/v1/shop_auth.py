@@ -8,7 +8,7 @@ from api.crud import shop_auth
 from api.schemas.shop_auth import (
     ShopLoginRequest, 
     ShopResponse, 
-    UpdatePasswordRequest,
+    ShopVerifyOTPRequest,
     ShopVerifyOTPRequest,
     ShopAuthResponse
 )
@@ -20,7 +20,7 @@ from api.models.shop import Shop
 from api.models.otp import OTP
 
 router = APIRouter()
-tags: Optional[list] = ["Shop Auth"]
+tags: Optional[list] = ["Shop - Auth"]
 logger = logging.getLogger(__name__)
 
 @router.post("/check-exists", response_model=ApnaStoreResponse, tags=tags)
@@ -44,12 +44,17 @@ def check_shop_exists(*, db: Session = Depends(deps.get_db), body: ShopLoginRequ
                 message="Shop not found. Please contact admin to register."
             )
         
+        if not shop.is_active:
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_403_FORBIDDEN,
+                message="Your shop account has been deactivated. Please contact admin."
+            )
+            
         return ApnaStoreResponse(
             success=True,
-            data={
-                "shop": ShopResponse.model_validate(shop),
-                "is_new": shop.password is None 
-            },
+            data={"shop": ShopResponse.model_validate(shop)},
             status_code=status.HTTP_200_OK,
             message="Shop exists."
         )
@@ -78,6 +83,14 @@ def shop_send_otp(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest)
                 data=None,
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Shop not registered."
+            )
+            
+        if not shop.is_active:
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_403_FORBIDDEN,
+                message="Your shop account has been deactivated."
             )
 
         db_otp, cooldown, expires_in = shop_auth.create_shop_otp(db, shop_id=shop.id)
@@ -158,79 +171,7 @@ def shop_verify_otp(*, db: Session = Depends(deps.get_db), body: ShopVerifyOTPRe
             message="Verification failed."
         )
 
-@router.post("/update-password", response_model=ApnaStoreResponse, tags=tags)
-def update_shop_password(
-    *, 
-    db: Session = Depends(deps.get_db), 
-    body: UpdatePasswordRequest
-):
-    """
-    Final Step: Update the shop password.
-    - No OTP/Reference ID in the request body.
-    - For existing shops, it checks if a verification recently happened.
-    - For new shops, it allows direct access.
-    """
-    try:
-        if body.password != body.password_confirm:
-            return ApnaStoreResponse(
-                success=False,
-                data=None,
-                status_code=status.HTTP_400_BAD_REQUEST,
-                message="Passwords do not match."
-            )
-        
-        shop = shop_auth.get_shop_by_email(db, email=body.email)
-        if not shop:
-             return ApnaStoreResponse(
-                success=False,
-                data=None,
-                status_code=status.HTTP_404_NOT_FOUND,
-                message="Shop not found."
-            )
 
-        # 🛡️ Authorization Check
-        if shop.password is not None:
-            # Requires recent verification check
-            recent_verification = db.query(OTP).filter(
-                OTP.shop_id == shop.id,
-                OTP.is_used == True,
-                OTP.updated_at >= datetime.utcnow() - timedelta(minutes=5)
-            ).order_by(OTP.updated_at.desc()).first()
-            
-            if not recent_verification:
-                return ApnaStoreResponse(
-                    success=False,
-                    data=None,
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    message="Verification required. Please verify your OTP first."
-                )
-
-        # ✨ Save Password
-        hashed_pass = security.get_password_hash(body.password)
-        shop_auth.update_shop_password(db, shop_id=shop.id, hashed_password=hashed_pass)
-        
-        # 🔑 Generate Tokens
-        access_token = security.create_access_token(subject=shop.id, type="shop")
-        refresh_token = security.create_refresh_token(subject=shop.id, type="shop")
-
-        return ApnaStoreResponse(
-            success=True,
-            data=ShopAuthResponse(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                shop=ShopResponse.model_validate(shop)
-            ),
-            status_code=status.HTTP_200_OK,
-            message="Password updated successfully. You are now logged in."
-        )
-    except Exception as e:
-        logger.error(f"Error updating shop password: {e}")
-        return ApnaStoreResponse(
-            success=False,
-            data=None,
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message="Password update failed."
-        )
 
 @router.post("/resend-otp", response_model=ApnaStoreResponse, tags=tags)
 def shop_resend_otp(
@@ -258,6 +199,14 @@ def shop_resend_otp(
                 data=None,
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Shop not found."
+            )
+            
+        if not shop.is_active:
+            return ApnaStoreResponse(
+                success=False,
+                data=None,
+                status_code=status.HTTP_403_FORBIDDEN,
+                message="Your shop account has been deactivated."
             )
 
         # 3. Create New OTP
@@ -295,4 +244,66 @@ def shop_resend_otp(
             data=None,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             message="Failed to resend OTP."
+        )
+
+from api.schemas.shop_auth import ShopUpdateRequest
+from api.crud.shop_auth import get_current_shop
+
+@router.get("/profile", response_model=ApnaStoreResponse, tags=tags)
+def get_shop_profile(
+    current_shop: Shop = Depends(get_current_shop)
+):
+    """Get current logged-in shop profile."""
+    return ApnaStoreResponse(
+        success=True,
+        data=ShopResponse.model_validate(current_shop),
+        status_code=status.HTTP_200_OK,
+        message="Profile retrieved successfully."
+    )
+
+@router.put("/profile", response_model=ApnaStoreResponse, tags=tags)
+def update_shop_profile(
+    body: ShopUpdateRequest,
+    db: Session = Depends(deps.get_db),
+    current_shop: Shop = Depends(get_current_shop)
+):
+    """
+    Complete or update shop onboarding profile.
+    Automatically calculates if profile_completed based on mandatory fields.
+    """
+    try:
+        update_data = body.model_dump(exclude_unset=True)
+        for k, v in update_data.items():
+            setattr(current_shop, k, v)
+            
+        # Mandatory fields check
+        mandatory_fields = [
+            current_shop.shop_name,
+            current_shop.owner_name,
+            current_shop.phone,
+            current_shop.address,
+            current_shop.city,
+            current_shop.state,
+            current_shop.pincode
+        ]
+        
+        current_shop.profile_completed = all(bool(f and str(f).strip()) for f in mandatory_fields)
+        
+        db.commit()
+        db.refresh(current_shop)
+        
+        return ApnaStoreResponse(
+            success=True,
+            data=ShopResponse.model_validate(current_shop),
+            status_code=status.HTTP_200_OK,
+            message="Profile updated successfully."
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating shop profile: {e}")
+        return ApnaStoreResponse(
+            success=False,
+            data=None,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Profile update failed."
         )
