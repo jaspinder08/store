@@ -6,7 +6,7 @@ from api.endpoints import deps
 from api.crud import order as crud_order
 from api.crud.shop_auth import get_current_shop
 from api.schemas.order import OrderUpdateStatus, OrderResponse
-from api.schemas.base import ApnaStoreResponse
+from api.schemas.base import ApnaStoreResponse, ListData
 from api.models.shop import Shop
 
 router = APIRouter()
@@ -30,7 +30,10 @@ def get_shop_orders(
         orders = crud_order.get_orders_by_shop(db, shop_id=current_shop.id, skip=skip, limit=limit, status_filter=status_filter)
         return ApnaStoreResponse(
             success=True,
-            data=[OrderResponse.model_validate(o) for o in orders],
+            data=ListData(
+                count=len(orders),
+                items=[OrderResponse.model_validate(o) for o in orders]
+            ),
             status_code=status.HTTP_200_OK,
             message="Orders retrieved successfully."
         )

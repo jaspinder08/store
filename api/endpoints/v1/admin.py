@@ -7,7 +7,7 @@ from api.endpoints import deps
 from api.crud import auth as crud_auth
 from api.crud import shop_auth as crud_shop
 from api.schemas.shop_auth import ShopCreateRequest, ShopResponse
-from api.schemas.base import ApnaStoreResponse
+from api.schemas.base import ApnaStoreResponse, ListData
 from api.models.user import User
 from uuid import UUID
 from api.crud import category as crud_category
@@ -228,7 +228,10 @@ def admin_get_categories(
         categories = db.query(Category).filter(Category.is_deleted == False).order_by(Category.created_at.desc()).offset(skip).limit(limit).all()
         return ApnaStoreResponse(
             success=True,
-            data=[CategoryResponse.model_validate(c) for c in categories],
+            data=ListData(
+                count=len(categories),
+                items=[CategoryResponse.model_validate(c) for c in categories]
+            ),
             status_code=status.HTTP_200_OK,
             message="Categories retrieved successfully."
         )
@@ -271,7 +274,10 @@ def admin_get_orders(
         from api.schemas.order import OrderResponse
         return ApnaStoreResponse(
             success=True,
-            data=[OrderResponse.model_validate(o) for o in orders],
+            data=ListData(
+                count=len(orders),
+                items=[OrderResponse.model_validate(o) for o in orders]
+            ),
             status_code=status.HTTP_200_OK,
             message="Orders retrieved successfully."
         )
@@ -503,7 +509,10 @@ def admin_get_shops(
         from api.schemas.shop_auth import AdminShopListResponse
         return ApnaStoreResponse(
             success=True,
-            data=[AdminShopListResponse.model_validate(s) for s in shops],
+            data=ListData(
+                count=len(shops),
+                items=[AdminShopListResponse.model_validate(s) for s in shops]
+            ),
             status_code=status.HTTP_200_OK,
             message="Shops retrieved successfully."
         )

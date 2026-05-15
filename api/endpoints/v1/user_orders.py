@@ -6,7 +6,7 @@ from api.endpoints import deps
 from api.crud import order as crud_order
 from api.crud.auth import get_current_user
 from api.schemas.order import OrderCreate, OrderResponse
-from api.schemas.base import ApnaStoreResponse
+from api.schemas.base import ApnaStoreResponse, ListData
 from api.models.user import User
 from typing import Optional
 
@@ -66,7 +66,10 @@ def get_orders(
         orders = crud_order.get_orders_by_user(db, user_id=current_user.id, skip=skip, limit=limit)
         return ApnaStoreResponse(
             success=True,
-            data=[OrderResponse.model_validate(o) for o in orders],
+            data=ListData(
+                count=len(orders),
+                items=[OrderResponse.model_validate(o) for o in orders]
+            ),
             status_code=status.HTTP_200_OK,
             message="Orders retrieved successfully."
         )

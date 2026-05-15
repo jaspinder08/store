@@ -1,5 +1,9 @@
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, List
+
+class ListData(BaseModel):
+    count: int
+    items: List[Any]
 
 class ApnaStoreResponse(BaseModel):
     """
@@ -9,7 +13,3 @@ class ApnaStoreResponse(BaseModel):
     data: Any
     status_code: int
     message: str
-
-class ListResponse(BaseModel):
-    count: int
-    items: list[Any]

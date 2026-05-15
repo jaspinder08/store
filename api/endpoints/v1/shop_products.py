@@ -8,7 +8,7 @@ from api.crud import product as crud_product
 from api.crud import category as crud_category
 from api.crud.shop_auth import get_current_shop
 from api.schemas.product import ProductCreate, ProductUpdate, ProductResponse
-from api.schemas.base import ApnaStoreResponse
+from api.schemas.base import ApnaStoreResponse, ListData
 from api.models.shop import Shop
 
 router = APIRouter()
@@ -76,7 +76,10 @@ def get_products(
         
         return ApnaStoreResponse(
             success=True,
-            data=[ProductResponse.model_validate(p) for p in products],
+            data=ListData(
+                count=len(products),
+                items=[ProductResponse.model_validate(p) for p in products]
+            ),
             status_code=status.HTTP_200_OK,
             message="Products retrieved successfully."
         )

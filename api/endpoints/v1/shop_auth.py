@@ -23,49 +23,6 @@ router = APIRouter()
 tags: Optional[list] = ["Shop - Auth"]
 logger = logging.getLogger(__name__)
 
-@router.post("/check-exists", response_model=ApnaStoreResponse, tags=tags)
-def check_shop_exists(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest):
-    """
-    Step 1: Check if a shop exists.
-    Allows the frontend to decide next steps.
-    """
-    try:
-        shop = None
-        if body.email:
-            shop = shop_auth.get_shop_by_email(db, email=body.email)
-        elif body.phone:
-            shop = shop_auth.get_shop_by_phone(db, phone=body.phone)
-        
-        if not shop:
-            return ApnaStoreResponse(
-                success=False,
-                data=None,
-                status_code=status.HTTP_404_NOT_FOUND,
-                message="Shop not found. Please contact admin to register."
-            )
-        
-        if not shop.is_active:
-            return ApnaStoreResponse(
-                success=False,
-                data=None,
-                status_code=status.HTTP_403_FORBIDDEN,
-                message="Your shop account has been deactivated. Please contact admin."
-            )
-            
-        return ApnaStoreResponse(
-            success=True,
-            data={"shop": ShopResponse.model_validate(shop)},
-            status_code=status.HTTP_200_OK,
-            message="Shop exists."
-        )
-    except Exception as e:
-        logger.error(f"Error checking shop exists: {e}")
-        return ApnaStoreResponse(
-            success=False,
-            data=None,
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message="An unexpected error occurred."
-        )
 
 @router.post("/send-otp", response_model=ApnaStoreResponse, tags=tags)
 def shop_send_otp(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest):
@@ -82,7 +39,7 @@ def shop_send_otp(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest)
                 success=False,
                 data=None,
                 status_code=status.HTTP_404_NOT_FOUND,
-                message="Shop not registered."
+                message="Shop not found. Please contact admin to register."
             )
             
         if not shop.is_active:

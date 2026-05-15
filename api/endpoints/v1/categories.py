@@ -5,7 +5,7 @@ from typing import List
 from api.endpoints import deps
 from api.crud import category as crud_category
 from api.schemas.category import CategoryResponse
-from api.schemas.base import ApnaStoreResponse
+from api.schemas.base import ApnaStoreResponse, ListData
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,7 +24,10 @@ def get_categories(
         
         return ApnaStoreResponse(
             success=True,
-            data=[CategoryResponse.model_validate(c) for c in categories],
+            data=ListData(
+                count=len(categories),
+                items=[CategoryResponse.model_validate(c) for c in categories]
+            ),
             status_code=status.HTTP_200_OK,
             message="Categories retrieved successfully."
         )
