@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # DATABASE
-    POSTGRES_SERVER: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
+    POSTGRES_SERVER: Optional[str] = None
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_DB: Optional[str] = None
     DATABASE_URL: str
 
     # Security
