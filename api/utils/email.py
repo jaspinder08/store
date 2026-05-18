@@ -1,37 +1,37 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import logging
+import resend
 from api.core.config import settings
 
-def send_otp_email(email_to: str, otp: str):
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        print(f"Skipping email send for {email_to} (Credentials not set). OTP: {otp}")
+logger = logging.getLogger(__name__)
+
+def send_otp_email(email: str, otp: str):
+    if not settings.RESEND_API_KEY:
+        logger.warning(f"Skipping email send for {email} (Resend API Key not set). OTP: {otp}")
         return
 
-    message = MIMEMultipart()
-    message["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
-    message["To"] = email_to
-    message["Subject"] = f"Your OTP for {settings.PROJECT_NAME}"
+    resend.api_key = settings.RESEND_API_KEY
 
     html_content = f"""
     <html>
         <body>
             <h2>Hello!</h2>
-            <p>Your OTP for verification is: <b>{otp}</b></p>
+            <p>Your OTP for verification at <b>{settings.PROJECT_NAME or 'Apna Store'}</b> is: <b>{otp}</b></p>
             <p>This OTP is valid for 5 minutes.</p>
             <p>If you didn't request this, please ignore this email.</p>
         </body>
     </html>
     """
-    message.attach(MIMEText(html_content, "html"))
+
+    params = {
+        "from": "onboarding@resend.dev",
+        "to": [email],
+        "subject": f"Your OTP for {settings.PROJECT_NAME or 'Apna Store'}",
+        "html": html_content,
+    }
 
     try:
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
-        if settings.SMTP_TLS:
-            server.starttls()
-        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        server.send_message(message)
-        server.quit()
-        print(f"Email sent successfully to {email_to}")
+        response = resend.Emails.send(params)
+        logger.info(f"Email sent successfully to {email}. Resend ID: {response.get('id', 'N/A')}")
     except Exception as e:
-        print(f"Failed to send email to {email_to}: {e}")
+        logger.error(f"Failed to send email to {email}: {e}")
+

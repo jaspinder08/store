@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/send-otp", response_model=ApnaStoreResponse, tags=tags)
-def shop_send_otp(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest):
+def shop_send_otp(
+    *, 
+    db: Session = Depends(deps.get_db), 
+    body: ShopLoginRequest,
+    background_tasks: BackgroundTasks
+):
     """Step 2 (Reset path): Send OTP to shop email/phone."""
     try:
         shop = None
@@ -61,7 +66,7 @@ def shop_send_otp(*, db: Session = Depends(deps.get_db), body: ShopLoginRequest)
             )
 
         if shop.email:
-            send_otp_email(shop.email, db_otp.otp)
+            background_tasks.add_task(send_otp_email, shop.email, db_otp.otp)
         
         if shop.phone:
             print(f"Shop OTP for {shop.phone}: {db_otp.otp} (Ref: {db_otp.reference_id})")
@@ -134,7 +139,8 @@ def shop_verify_otp(*, db: Session = Depends(deps.get_db), body: ShopVerifyOTPRe
 def shop_resend_otp(
     *, 
     db: Session = Depends(deps.get_db), 
-    body: ResendOTPRequest
+    body: ResendOTPRequest,
+    background_tasks: BackgroundTasks
 ):
     """Resend OTP for a shop based on an existing reference ID."""
     try:
@@ -179,7 +185,7 @@ def shop_resend_otp(
 
         # 4. Send OTP
         if shop.email:
-            send_otp_email(shop.email, db_otp.otp)
+            background_tasks.add_task(send_otp_email, shop.email, db_otp.otp)
 
         if shop.phone:
             print(f"Shop OTP Resent for {shop.phone}: {db_otp.otp}")
